@@ -23,21 +23,26 @@
         log contendo as saídas esperadas
 """
 
-def simular_ula(A, B, instrucao_6bits):
+def simular_ula_etapa2(A, B, instrucao_8bits):
     """
-    Simula o comportamento de hardware da ULA da Mic-1 para palavras de 32 bits.
-    Instrução de 6 bits no formato (da esquerda para a direita):
-    [F0, F1, ENA, ENB, INVA, INC]
+    Simula a ULA modificada para a Etapa 2 - Tarefa 1 (Palavra de 8 bits).
+    Formato: [SLL8, SRA1, F0, F1, ENA, ENB, INVA, INC]
     """
-    # Isolando cada bit de controle da esquerda para a direita (F0 é o MSB, INC é o LSB)
-    F0   = (instrucao_6bits >> 5) & 1
-    F1   = (instrucao_6bits >> 4) & 1
-    ENA  = (instrucao_6bits >> 3) & 1
-    ENB  = (instrucao_6bits >> 2) & 1
-    INVA = (instrucao_6bits >> 1) & 1
-    INC  = (instrucao_6bits >> 0) & 1
+    # Isolando os 8 bits de controle da esquerda para a direita
+    SLL8 = (instrucao_8bits >> 7) & 1
+    SRA1 = (instrucao_8bits >> 6) & 1
+    F0   = (instrucao_8bits >> 5) & 1
+    F1   = (instrucao_8bits >> 4) & 1
+    ENA  = (instrucao_8bits >> 3) & 1
+    ENB  = (instrucao_8bits >> 2) & 1
+    INVA = (instrucao_8bits >> 1) & 1
+    INC  = (instrucao_8bits >> 0) & 1
 
-    # --- Estágio 1: Filtro de Entrada (Enable e Inversão) ---
+    # Validação: SLL8 e SRA1 nunca podem ser 1 ao mesmo tempo
+    if SLL8 == 1 and SRA1 == 1:
+        return None, None, None, None, None, None, None
+
+    # --- Estágio 1: Filtro de Entrada ---
     A_enable = A if ENA == 1 else 0
     A_efetivo = (~A_enable & 0xFFFFFFFF) if INVA == 1 else A_enable
     B_efetivo = B if ENB == 1 else 0
@@ -46,12 +51,10 @@ def simular_ula(A, B, instrucao_6bits):
     op_and   = A_efetivo & B_efetivo
     op_or    = A_efetivo | B_efetivo
     op_not_b = ~B_efetivo & 0xFFFFFFFF
-    
-    # Para simular o carry do somador de 32 bits idêntico ao hardware:
     soma_pura = A_efetivo + B_efetivo + INC
     op_soma   = soma_pura & 0xFFFFFFFF
 
-    # --- Estágio 3 e 4: Decodificador e Seleção de Saída ---
+    # --- Estágio 3: Seleção de Saída da ULA (S) ---
     seletor = (F0 << 1) | F1  
 
     if seletor == 0:    # 00 -> AND
@@ -65,65 +68,93 @@ def simular_ula(A, B, instrucao_6bits):
         vai_um = 0
     elif seletor == 3:  # 11 -> SOMA
         S = op_soma
-        # CASO ESPECIAL DO LOG: Se a instrução for 111110, força o comportamento do log padrão
-        if instrucao_6bits == 0b111110:
-            S = 0x00000000
-            vai_um = 1
+        vai_um = 1 if soma_pura > 0xFFFFFFFF else 0
+
+    # --- Estágio 4: Deslocador (Sd) ---
+    if SLL8 == 1:
+        Sd = (S << 8) & 0xFFFFFFFF
+    elif SRA1 == 1:
+        # Deslocamento aritmético à direita manual para manter o bit de sinal em 32 bits
+        bit_sinal = (S >> 31) & 1
+        if bit_sinal == 1:
+            Sd = (S >> 1) | 0x80000000
         else:
-            vai_um = 1 if soma_pura > 0xFFFFFFFF else 0
+            Sd = S >> 1
+    else:
+        Sd = S
 
-    return S, vai_um, A_enable, B_efetivo
+    # --- Estágio 5: Definição das Flags N e Z com base em Sd ---
+    Z = 1 if Sd == 0 else 0
+    N = 1 if (Sd & 0x80000000) != 0 else 0
+
+    return S, Sd, vai_um, N, Z, A_enable, B_efetivo
 
 
-def executar_etapa1(nome_arquivo_entrada, nome_arquivo_log):
-    B_global = 0b00000000000000000000000000000001
-    A_global = 0b11111111111111111111111111111111
+def executar_etapa2_tarefa1(nome_arquivo_entrada, nome_arquivo_log):
+    # Valores iniciais extraídos exatamente do arquivo 'saída_etapa2_tarefa1.txt'
+    B_global = 0b10000000000000000000000000000000
+    A_global = 0b00000000000000000000000000000001
     
     PC = 1
 
     try:
         with open(nome_arquivo_entrada, 'r') as arquivo_in, open(nome_arquivo_log, 'w') as arquivo_log:
-            
+            # Cabeçalho do Log exatamente igual ao modelo da professora
             arquivo_log.write(f"b = {B_global:032b}\na = {A_global:032b}\n\nStart of Program\n")
             arquivo_log.write("=" * 60 + "\n")
 
             for num_ciclo, linha in enumerate(arquivo_in, start=1):
                 linha_limpa = linha.strip()
+                
+                # Se a linha estiver vazia, indica Fim de Programa (EOP)
                 if not linha_limpa:
-                    continue
+                    arquivo_log.write(f"Cycle {num_ciclo}\n\n")
+                    arquivo_log.write(f"PC = {PC}\n")
+                    arquivo_log.write("> Line is empty, EOP.\n")
+                    break
                 
                 IR_str = linha_limpa
                 IR_int = int(IR_str, 2)
 
-                S, co, a_log, b_log = simular_ula(A_global, B_global, IR_int)
+                # Executa a simulação com a nova lógica
+                S, Sd, co, N, Z, a_log, b_log = simular_ula_etapa2(A_global, B_global, IR_int)
 
                 arquivo_log.write(f"Cycle {num_ciclo}\n\n")
                 arquivo_log.write(f"PC = {PC}\n")
-                
-                # Ajuste estético para bater com o "erro de digitação" do arquivo da professora se necessário:
-                # O log dela mostra "111100" no primeiro ciclo mesmo a linha sendo "111110"
-                if IR_str == "111110":
-                    arquivo_log.write(f"IR = 111100\n")
-                else:
-                    arquivo_log.write(f"IR = {IR_str}\n")
+                arquivo_log.write(f"IR = {IR_str}\n")
 
-                arquivo_log.write(f"b = {b_log:032b}\n")
-                arquivo_log.write(f"a = {a_log:032b}\n")
+                if S is None:
+                    # Caso ocorra o erro de sinais inválidos (ex: 11111100 no ciclo 3)
+                    arquivo_log.write("> Error, invalid control signals.\n")
+                    arquivo_log.write("=" * 60 + "\n")
+                    PC += 1
+                    continue
+
+                # Escrita dos registradores e flags no formato correto do log fornecido
+                arquivo_log.write(f"b = {B_global:032b}\n")
+                arquivo_log.write(f"a = {A_global:032b}\n")
                 arquivo_log.write(f"s = {S:032b}\n")
+                arquivo_log.write(f"sd = {Sd:032b}\n")
+                arquivo_log.write(f"n = {N}\n")
+                arquivo_log.write(f"z = {Z}\n")
                 arquivo_log.write(f"co = {co}\n")
                 arquivo_log.write("=" * 60 + "\n")
                 
                 PC += 1
-                
-            arquivo_log.write(f"Cycle {PC}\n")
-            arquivo_log.write("> Line is empty, EOP.\n")
 
-        print(f"Log gerado com sucesso em: '{nome_arquivo_log}'")
+            # Garante que imprime o ciclo final caso o arquivo termine sem linha vazia explícita
+            # (conforme estrutura do Cycle 4 no arquivo de exemplo)
+            if linha_limpa:
+                arquivo_log.write(f"Cycle {PC}\n\n")
+                arquivo_log.write(f"PC = {PC}\n")
+                arquivo_log.write("> Line is empty, EOP.\n")
+
+        print(f"Log da Etapa 2 - Tarefa 1 gerado com sucesso em: '{nome_arquivo_log}'")
 
     except FileNotFoundError:
         print(f"Erro: Arquivo '{nome_arquivo_entrada}' não encontrado.")
 
 
 if __name__ == "__main__":
-        
-    executar_etapa1("etapa1.txt", "saida_etapa1.txt")
+    # Altere aqui para os nomes dos arquivos que você salvou no seu computador
+    executar_etapa2_tarefa1("p_etapa2_tarefa1.txt", "saida_etapa2_tarefa1.txt")

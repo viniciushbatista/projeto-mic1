@@ -484,29 +484,33 @@ def executar_entregavel(arquivo_instrucoes, arquivo_registradores, arquivo_dados
 
 if __name__ == "__main__":
     import os
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+
+    def obter_caminho(nome):
+        return os.path.join(base_dir, nome)
 
     # --- Teste da Etapa 3 - Tarefa 1 (só roda se o arquivo de microinstruções existir) ---
-    arquivo_micro = "microinstruções_etapa3_tarefa1.txt"
+    arquivo_micro = obter_caminho("microinstruções_etapa3_tarefa1.txt")
     if os.path.exists(arquivo_micro):
         executar_etapa3_tarefa1(
             arquivo_micro,
-            "registradores_etapa3_tarefa1.txt",
-            "dados_etapa3_tarefa1.txt",
-            "saida_etapa3_tarefa1_gerada.txt"
+            obter_caminho("registradores_etapa3_tarefa1.txt"),
+            obter_caminho("dados_etapa3_tarefa1.txt"),
+            obter_caminho("saida_etapa3_tarefa1_gerada.txt")
         )
     else:
         print(f"[Aviso] '{arquivo_micro}' não encontrado - pulando teste da Tarefa 1.")
 
     # --- Teste do Entregável (só roda se o arquivo de instruções existir) ---
     # Aceita tanto "instruções.txt" (com acento) quanto "instrucoes.txt" (sem acento)
-    candidatos = ["instruções.txt", "instrucoes.txt"]
+    candidatos = [obter_caminho("instruções.txt"), obter_caminho("instrucoes.txt")]
     arquivo_instrucoes = next((c for c in candidatos if os.path.exists(c)), None)
     if arquivo_instrucoes:
         executar_entregavel(
             arquivo_instrucoes,
-            "registradores_etapa3_tarefa1.txt",
-            "dados_etapa3_tarefa1.txt",
-            "saida_entregavel_gerada.txt"
+            obter_caminho("registradores_etapa3_tarefa1.txt"),
+            obter_caminho("dados_etapa3_tarefa1.txt"),
+            obter_caminho("saida_entregavel_gerada.txt")
         )
     else:
         print(f"[Aviso] Nenhum arquivo de instruções encontrado ({candidatos}) - pulando teste do Entregável.")

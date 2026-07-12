@@ -483,21 +483,30 @@ def executar_entregavel(arquivo_instrucoes, arquivo_registradores, arquivo_dados
 
 
 if __name__ == "__main__":
-    # Teste da Etapa 3 - Tarefa 1 com os arquivos fornecidos
-    executar_etapa3_tarefa1(
-        "microinstruções_etapa3_tarefa1.txt",
-        "registradores_etapa3_tarefa1.txt",
-        "dados_etapa3_tarefa1.txt",
-        "saida_etapa3_tarefa1_gerada.txt"
-    )
-
-    # Exemplo de teste do Entregável (crie um arquivo instrucoes.txt com linhas como:
-    # BIPUSH 00110011 / DUP / ILOAD 1)
     import os
-    if os.path.exists("instrucoes.txt"):
+
+    # --- Teste da Etapa 3 - Tarefa 1 (só roda se o arquivo de microinstruções existir) ---
+    arquivo_micro = "microinstruções_etapa3_tarefa1.txt"
+    if os.path.exists(arquivo_micro):
+        executar_etapa3_tarefa1(
+            arquivo_micro,
+            "registradores_etapa3_tarefa1.txt",
+            "dados_etapa3_tarefa1.txt",
+            "saida_etapa3_tarefa1_gerada.txt"
+        )
+    else:
+        print(f"[Aviso] '{arquivo_micro}' não encontrado - pulando teste da Tarefa 1.")
+
+    # --- Teste do Entregável (só roda se o arquivo de instruções existir) ---
+    # Aceita tanto "instruções.txt" (com acento) quanto "instrucoes.txt" (sem acento)
+    candidatos = ["instruções.txt", "instrucoes.txt"]
+    arquivo_instrucoes = next((c for c in candidatos if os.path.exists(c)), None)
+    if arquivo_instrucoes:
         executar_entregavel(
-            "instrucoes.txt",
+            arquivo_instrucoes,
             "registradores_etapa3_tarefa1.txt",
             "dados_etapa3_tarefa1.txt",
             "saida_entregavel_gerada.txt"
         )
+    else:
+        print(f"[Aviso] Nenhum arquivo de instruções encontrado ({candidatos}) - pulando teste do Entregável.")
